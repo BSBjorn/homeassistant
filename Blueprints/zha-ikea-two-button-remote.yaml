@@ -1,0 +1,184 @@
+blueprint:
+  name: ZHA - IKEA two button remote for lights
+  description: "Control lights with an IKEA two button remote (on/off switch),
+    for use with [ZHA](https://www.home-assistant.io/integrations/zha/).
+
+
+    Based on the four button remote blueprint, simplified for two button remotes
+    like the IKEA TRADFRI on/off switch.
+
+
+    Pressing the on button will turn on the lights at the last set brightness (unless
+    the force brightness is toggled on in the blueprint).
+
+
+    Pressing the off button will turn the lights off.
+
+
+    Pressing and holding the on/off buttons will change the brightness smoothly and
+    can be pressed and held until the brightness is satisfactory.
+
+
+    Additionally, you can assign custom actions to long press events for both buttons
+    if you prefer not to use them for brightness control.
+
+    "
+  domain: automation
+  input:
+    remote:
+      name: Remote
+      description: IKEA two button remote to use (TRADFRI on/off switch)
+      selector:
+        device:
+          integration: zha
+          manufacturer: IKEA of Sweden
+          model: TRADFRI on/off switch
+          multiple: false
+    light:
+      name: Light(s)
+      description: The light(s) to control
+      selector:
+        target:
+          entity:
+            - domain:
+                - light
+    force_brightness:
+      name: Force turn on brightness
+      description:
+        Force the brightness to the set level below, when the "on" button
+        on the remote is pushed and lights turn on.
+      default: false
+      selector:
+        boolean: {}
+    brightness:
+      name: Brightness
+      description: Brightness of the light(s) when turning on
+      default: 50
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          mode: slider
+          step: 1.0
+          unit_of_measurement: "%"
+    use_brightness_control:
+      name: Use brightness control on long press
+      description:
+        When enabled, holding the on button will brighten lights and holding
+        the off button will dim lights. When disabled, custom long press actions
+        below will be used instead.
+      default: true
+      selector:
+        boolean: {}
+    hold_time:
+      name: Hold Time
+      description:
+        Time between the execution of the brighter/darker actions when
+        holding the on/off button (only used when brightness control is enabled).
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 2.0
+          step: 0.1
+          unit_of_measurement: seconds
+          mode: slider
+    button_on_long:
+      name: On button - long press
+      description:
+        Action to run on long on button press (only used when brightness
+        control is disabled).
+      default: []
+      selector:
+        action: {}
+    button_off_long:
+      name: Off button - long press
+      description:
+        Action to run on long off button press (only used when brightness
+        control is disabled).
+      default: []
+      selector:
+        action: {}
+  source_url: https://github.com/home-assistant/blueprints
+mode: restart
+max_exceeded: silent
+variables:
+  force_brightness: !input force_brightness
+  use_brightness_control: !input use_brightness_control
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      cluster_id: "{{ trigger.event.data.cluster_id }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      args: "{{ trigger.event.data.args }}"
+  - choose:
+      - conditions:
+          - "{{ command == 'on' }}"
+          - "{{ cluster_id == 6 }}"
+        sequence:
+          - choose:
+              - conditions: "{{ force_brightness }}"
+                sequence:
+                  - service: light.turn_on
+                    target: !input light
+                    data:
+                      transition: 1
+                      brightness_pct: !input brightness
+            default:
+              - service: light.turn_on
+                target: !input light
+                data:
+                  transition: 1
+      - conditions:
+          - "{{ command == 'off' }}"
+          - "{{ cluster_id == 6 }}"
+        sequence:
+          - service: light.turn_off
+            target: !input light
+            data:
+              transition: 1
+      - conditions:
+          - "{{ command == 'move_with_on_off' }}"
+          - "{{ cluster_id == 8 }}"
+          - "{{ use_brightness_control }}"
+        sequence:
+          - repeat:
+              count: 10
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: 10
+                    transition: !input hold_time
+                - delay: !input hold_time
+      - conditions:
+          - "{{ command == 'move' }}"
+          - "{{ cluster_id == 8 }}"
+          - "{{ use_brightness_control }}"
+        sequence:
+          - repeat:
+              count: 10
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: -10
+                    transition: !input hold_time
+                - delay: !input hold_time
+      - conditions:
+          - "{{ command == 'hold' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ args[0] == 3329 or args == [3329, 0] }}"
+          - "{{ not use_brightness_control }}"
+        sequence: !input button_on_long
+      - conditions:
+          - "{{ command == 'hold' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ args[0] == 3328 or args == [3328, 0] }}"
+          - "{{ not use_brightness_control }}"
+        sequence: !input button_off_long

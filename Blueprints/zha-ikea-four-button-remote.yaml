@@ -1,0 +1,342 @@
+blueprint:
+  name: ZHA - IKEA four button remote for lights
+  description:
+    'Control lights with an IKEA four button remote (the square ones),
+    for use with [ZHA](https://www.home-assistant.io/integrations/zha/).
+
+
+    Extends [SwerveShot](https://community.home-assistant.io/u/SwerveShot)''s [version](https://community.home-assistant.io/t/zha-ikea-four-button-remote-for-lights/347657)
+    which is based on the work of [frenck](https://community.home-assistant.io/u/frenck)
+    with the five button version.
+
+
+    Pressing the up button will turn on the lights at the last set brightness (unless
+    the force brightness is toggled on in the blueprint).
+
+
+    Pressing the down button will turn the lights off again.
+
+
+    Pressing and holding the up/down buttons will change the brightness smoothly and
+    can be pressed and hold until the brightness is satisfactory.
+
+
+    The "left" and "right" buttons can be assigned to a short and long button press
+    action. This allows you to assign, e.g., a scene or anything else.
+
+
+    Alternatively, enable color cycling mode to use the left button to cycle through
+    colors in one direction and the right button to cycle in the opposite direction.
+    This works with color-capable lights only.
+
+    '
+  domain: automation
+  input:
+    remote:
+      name: Remote
+      description: IKEA remote to use
+      selector:
+        device:
+          integration: zha
+          manufacturer: IKEA of Sweden
+          model: Remote Control N2
+          multiple: false
+    light:
+      name: Light(s)
+      description: The light(s) to control
+      selector:
+        target:
+          entity:
+            - domain:
+                - light
+    force_brightness:
+      name: Force turn on brightness
+      description:
+        Force the brightness to the set level below, when the "on" button
+        on the remote is pushed and lights turn on.
+      default: false
+      selector:
+        boolean: {}
+    brightness:
+      name: Brightness
+      description: Brightness of the light(s) when turning on
+      default: 50
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          mode: slider
+          step: 1.0
+          unit_of_measurement: "%"
+    hold_time:
+      name: Hold Time
+      description:
+        Time between the execution of the brighter/darker actions when
+        holding the brighter/darker button.
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 2.0
+          step: 0.1
+          unit_of_measurement: seconds
+          mode: slider
+    enable_color_cycling:
+      name: Enable color cycling
+      description:
+        Enable color cycling mode for left/right buttons. When enabled, short
+        press left cycles colors forward, short press right cycles colors backward.
+        Long press actions will still work. Only works with color-capable lights.
+      default: false
+      selector:
+        boolean: {}
+    color_list:
+      name: Color cycling list
+      description:
+        List of colors to cycle through (only used when color cycling is enabled).
+        Options are red, orange, yellow, green, cyan, blue, purple, pink, white, warm_white.
+      default:
+        - red
+        - orange
+        - yellow
+        - green
+        - cyan
+        - blue
+        - purple
+        - pink
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Red
+              value: red
+            - label: Orange
+              value: orange
+            - label: Yellow
+              value: yellow
+            - label: Green
+              value: green
+            - label: Cyan
+              value: cyan
+            - label: Blue
+              value: blue
+            - label: Purple
+              value: purple
+            - label: Pink
+              value: pink
+            - label: White
+              value: white
+            - label: Warm White
+              value: warm_white
+    button_left_short:
+      name: Left button - short press
+      description: Action to run on short left button press
+      default: []
+      selector:
+        action: {}
+    button_left_long:
+      name: Left button - long press
+      description:
+        Action to run on long left button press. Use with care, as before
+        the long press event is sent, the "on" event gets triggered.
+      default: []
+      selector:
+        action: {}
+    button_right_short:
+      name: Right button - short press
+      description: Action to run on short right button press
+      default: []
+      selector:
+        action: {}
+    button_right_long:
+      name: Right button - long press
+      description:
+        Action to run on long right button press. Use with care, as before
+        the long press event is sent, the "on" event gets triggered.
+      default: []
+      selector:
+        action: {}
+  source_url: https://community.home-assistant.io/t/zha-ikea-four-button-remote-styrbar-for-lights-e2001-e2002/384482
+mode: restart
+max_exceeded: silent
+variables:
+  force_brightness: !input force_brightness
+  enable_color_cycling: !input enable_color_cycling
+  color_list: !input color_list
+  light_target: !input light
+  color_map:
+    red: [0, 100]
+    orange: [30, 100]
+    yellow: [60, 100]
+    green: [120, 100]
+    cyan: [180, 100]
+    blue: [240, 100]
+    purple: [270, 100]
+    pink: [300, 100]
+    white: [0, 0]
+    warm_white: [30, 20]
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      cluster_id: "{{ trigger.event.data.cluster_id }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      args: "{{ trigger.event.data.args }}"
+  - choose:
+      - conditions:
+          - "{{ command == 'on' }}"
+          - "{{ cluster_id == 6 }}"
+          - "{{ endpoint_id == 1 }}"
+        sequence:
+          - choose:
+              - conditions: "{{ force_brightness }}"
+                sequence:
+                  - service: light.turn_on
+                    target: !input light
+                    data:
+                      transition: 1
+                      brightness_pct: !input brightness
+            default:
+              - service: light.turn_on
+                target: !input light
+                data:
+                  transition: 1
+      - conditions:
+          - "{{ command == 'off' }}"
+          - "{{ cluster_id == 6 }}"
+          - "{{ endpoint_id == 1 }}"
+        sequence:
+          - service: light.turn_off
+            target: !input light
+            data:
+              transition: 1
+      - conditions:
+          - "{{ command == 'move_with_on_off' }}"
+          - "{{ cluster_id == 8 }}"
+          - "{{ endpoint_id == 1 }}"
+        sequence:
+          - repeat:
+              count: 10
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: 10
+                    transition: !input hold_time
+                - delay: !input hold_time
+      - conditions:
+          - "{{ command == 'move' }}"
+          - "{{ cluster_id == 8 }}"
+          - "{{ endpoint_id == 1 }}"
+        sequence:
+          - repeat:
+              count: 10
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: -10
+                    transition: !input hold_time
+                - delay: !input hold_time
+      - conditions:
+          - "{{ command == 'press' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ endpoint_id == 1 }}"
+          - "{{ args == [257, 13, 0] }}"
+        sequence:
+          - choose:
+              - conditions: "{{ enable_color_cycling }}"
+                sequence:
+                  - variables:
+                      light_entity: >
+                        {% if light_target.entity_id is defined %}
+                          {% if light_target.entity_id is string %}
+                            {{ light_target.entity_id }}
+                          {% else %}
+                            {{ light_target.entity_id | first }}
+                          {% endif %}
+                        {% else %}
+                          {{ expand(light_target) | map(attribute='entity_id') | list | first }}
+                        {% endif %}
+                      current_index: >
+                        {% set current_color = state_attr(light_entity, 'hs_color') %}
+                        {% if current_color %}
+                          {% set current_hue = current_color[0] | int %}
+                          {% set distances = namespace(items=[]) %}
+                          {% for color in color_list %}
+                            {% set color_hue = color_map[color][0] %}
+                            {% set distances.items = distances.items + [((current_hue - color_hue) % 360)] %}
+                          {% endfor %}
+                          {% set min_distance = distances.items | min %}
+                          {{ distances.items.index(min_distance) }}
+                        {% else %}
+                          0
+                        {% endif %}
+                      next_index: "{{ (current_index | int + 1) % (color_list | length) }}"
+                      next_color: "{{ color_list[next_index | int] }}"
+                      next_hs: "{{ color_map[next_color] }}"
+                  - service: light.turn_on
+                    target: !input light
+                    data:
+                      hs_color: "{{ next_hs }}"
+                      transition: 0.5
+            default: !input button_left_short
+      - conditions:
+          - "{{ command == 'hold' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ endpoint_id == 1 }}"
+          - "{{ args == [3329, 0] }}"
+        sequence: !input button_left_long
+      - conditions:
+          - "{{ command == 'press' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ endpoint_id == 1 }}"
+          - "{{ args == [256, 13, 0] }}"
+        sequence:
+          - choose:
+              - conditions: "{{ enable_color_cycling }}"
+                sequence:
+                  - variables:
+                      light_entity: >
+                        {% if light_target.entity_id is defined %}
+                          {% if light_target.entity_id is string %}
+                            {{ light_target.entity_id }}
+                          {% else %}
+                            {{ light_target.entity_id | first }}
+                          {% endif %}
+                        {% else %}
+                          {{ expand(light_target) | map(attribute='entity_id') | list | first }}
+                        {% endif %}
+                      current_index: >
+                        {% set current_color = state_attr(light_entity, 'hs_color') %}
+                        {% if current_color %}
+                          {% set current_hue = current_color[0] | int %}
+                          {% set distances = namespace(items=[]) %}
+                          {% for color in color_list %}
+                            {% set color_hue = color_map[color][0] %}
+                            {% set distances.items = distances.items + [((current_hue - color_hue) % 360)] %}
+                          {% endfor %}
+                          {% set min_distance = distances.items | min %}
+                          {{ distances.items.index(min_distance) }}
+                        {% else %}
+                          0
+                        {% endif %}
+                      prev_index: "{{ (current_index | int - 1) % (color_list | length) }}"
+                      prev_color: "{{ color_list[prev_index | int] }}"
+                      prev_hs: "{{ color_map[prev_color] }}"
+                  - service: light.turn_on
+                    target: !input light
+                    data:
+                      hs_color: "{{ prev_hs }}"
+                      transition: 0.5
+            default: !input button_right_short
+      - conditions:
+          - "{{ command == 'hold' }}"
+          - "{{ cluster_id == 5 }}"
+          - "{{ endpoint_id == 1 }}"
+          - "{{ args == [3328, 0] }}"
+        sequence: !input button_right_long
