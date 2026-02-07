@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA - IKEA two button remote for lights
+  name: IKEA two button remote
   description: "Control lights with an IKEA two button remote (on/off switch),
     for use with [ZHA](https://www.home-assistant.io/integrations/zha/).
 
