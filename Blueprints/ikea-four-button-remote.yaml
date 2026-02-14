@@ -253,10 +253,17 @@ action:
                 sequence:
                   - variables:
                       light_entity: >
-                        {% set entities = expand(light_target.entity_id) | map(attribute='entity_id') | list if light_target.entity_id is defined
-                           else expand(light_target) | map(attribute='entity_id') | list %}
-                        {{ entities[0] if entities | length > 0 else '' }}
-                      current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) }}"
+                        {% if light_target.entity_id is defined and light_target.entity_id is string %}
+                          {{ light_target.entity_id }}
+                        {% elif light_target.entity_id is defined and light_target.entity_id is iterable %}
+                          {{ light_target.entity_id[0] }}
+                        {% else %}
+                          {% set entities = expand(area_entities(light_target.area_id)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list if light_target.area_id is defined
+                             else expand(device_entities(light_target.device_id)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list if light_target.device_id is defined
+                             else [] %}
+                          {{ entities[0] if entities else '' }}
+                        {% endif %}
+                      current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) if light_entity else [255, 255, 255] }}"
                       current_index: >
                         {% set current = current_rgb | list %}
                         {% set found = namespace(index=0, min_distance=999999) %}
@@ -295,10 +302,17 @@ action:
                 sequence:
                   - variables:
                       light_entity: >
-                        {% set entities = expand(light_target.entity_id) | map(attribute='entity_id') | list if light_target.entity_id is defined
-                           else expand(light_target) | map(attribute='entity_id') | list %}
-                        {{ entities[0] if entities | length > 0 else '' }}
-                      current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) }}"
+                        {% if light_target.entity_id is defined and light_target.entity_id is string %}
+                          {{ light_target.entity_id }}
+                        {% elif light_target.entity_id is defined and light_target.entity_id is iterable %}
+                          {{ light_target.entity_id[0] }}
+                        {% else %}
+                          {% set entities = expand(area_entities(light_target.area_id)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list if light_target.area_id is defined
+                             else expand(device_entities(light_target.device_id)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list if light_target.device_id is defined
+                             else [] %}
+                          {{ entities[0] if entities else '' }}
+                        {% endif %}
+                      current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) if light_entity else [255, 255, 255] }}"
                       current_index: >
                         {% set current = current_rgb | list %}
                         {% set found = namespace(index=0, min_distance=999999) %}
