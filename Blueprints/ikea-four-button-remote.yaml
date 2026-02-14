@@ -253,15 +253,9 @@ action:
                 sequence:
                   - variables:
                       light_entity: >
-                        {% if light_target.entity_id is defined %}
-                          {% if light_target.entity_id is string %}
-                            {{ light_target.entity_id }}
-                          {% else %}
-                            {{ light_target.entity_id | first }}
-                          {% endif %}
-                        {% else %}
-                          {{ expand(light_target) | map(attribute='entity_id') | list | first }}
-                        {% endif %}
+                        {% set entities = expand(light_target.entity_id) | map(attribute='entity_id') | list if light_target.entity_id is defined
+                           else expand(light_target) | map(attribute='entity_id') | list %}
+                        {{ entities[0] if entities | length > 0 else '' }}
                       current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) }}"
                       current_index: >
                         {% set current = current_rgb | list %}
@@ -301,15 +295,9 @@ action:
                 sequence:
                   - variables:
                       light_entity: >
-                        {% if light_target.entity_id is defined %}
-                          {% if light_target.entity_id is string %}
-                            {{ light_target.entity_id }}
-                          {% else %}
-                            {{ light_target.entity_id | first }}
-                          {% endif %}
-                        {% else %}
-                          {{ expand(light_target) | map(attribute='entity_id') | list | first }}
-                        {% endif %}
+                        {% set entities = expand(light_target.entity_id) | map(attribute='entity_id') | list if light_target.entity_id is defined
+                           else expand(light_target) | map(attribute='entity_id') | list %}
+                        {{ entities[0] if entities | length > 0 else '' }}
                       current_rgb: "{{ state_attr(light_entity, 'rgb_color') | default([255, 255, 255]) }}"
                       current_index: >
                         {% set current = current_rgb | list %}
